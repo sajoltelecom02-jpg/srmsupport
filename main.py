@@ -4,7 +4,7 @@ import os
 import threading
 from flask import Flask
 
-# --- কনফিগারেশন ---
+# --- কনফিগারেশন (আপনার টোকেন ও আইডি) ---
 TOKEN = "8760273912:AAEkdvo_gB6yx4Vv--byb0UW_3HKVB9nksE"
 ADMINS = [5788640897]
 MY_CHANNEL_ID = -1002323081321  
@@ -15,11 +15,10 @@ BAN_FILE = "banned.json"
 bot = telebot.TeleBot(TOKEN)
 bot.remove_webhook()
 
-# --- Render Port Fix ---
+# --- Render Port Fix (Flask) ---
 app = Flask('')
 @app.route('/')
-def home(): return "SRM TELECOM BOT IS LIVE!"
-def run_web(): app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+def home(): return "SRM TELECOM BOT IS ACTIVE!"
 
 # --- ডাটাবেস হ্যান্ডলিং ---
 def load_data(file, default):
@@ -41,23 +40,37 @@ def main_menu(user_id):
     if user_id in ADMINS: markup.add("⚙️ Admin Panel")
     return markup
 
-def admin_menu():
+def balance_menu():
     markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    markup.add("📊 Total Users", "📜 User Details")
-    markup.add("🚫 Ban User", "✅ Unban User")
-    markup.add("🏠 মেইন মেনু")
+    markup.add("Bkash Personal", "Nagad Personal", "Upay Personal", "Bkash Agent", "Nagad Agent", "🏠 মেইন মেনু")
     return markup
 
-# --- চেক ফাংশন ---
+def recharge_menu():
+    markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    markup.add("GP Recharge", "BL Recharge", "RB Recharge", "AT Recharge", "🏠 মেইন মেনু")
+    return markup
+
+def drive_menu():
+    markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    markup.add("GP Drive", "BL Drive", "RB Drive", "AT Drive", "🏠 মেইন মেনু")
+    return markup
+
+def admin_menu():
+    markup = telebot.types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+    markup.add("📊 Total Users", "📜 User Details", "🚫 Ban User", "✅ Unban User", "🏠 মেইন মেনু")
+    return markup
+
+# --- Force Join চেক ---
 def is_joined(user_id):
     if user_id in ADMINS: return True
     try:
         ch = bot.get_chat_member(MY_CHANNEL_ID, user_id).status
         gr = bot.get_chat_member(MY_GROUP_ID, user_id).status
-        return ch in ['member', 'administrator', 'creator'] and gr in ['member', 'administrator', 'creator']
+        allowed = ['member', 'administrator', 'creator']
+        return (ch in allowed) and (gr in allowed)
     except: return False
 
-# --- কমান্ড হ্যান্ডলার ---
+# --- স্টার্ট কমান্ড ও ফোর্স জয়েন ---
 @bot.message_handler(commands=['start'])
 def start(message):
     uid = str(message.chat.id)
@@ -66,6 +79,7 @@ def start(message):
         bot.send_message(uid, "❌ আপনাকে ব্যান করা হয়েছে।")
         return
 
+    # ডাটাবেসে ইউজার সেভ করা
     users = load_data(DATA_FILE, {})
     if uid not in users:
         users[uid] = {"name": message.from_user.first_name, "phone": "Not Shared", "loc": "Not Shared"}
@@ -76,85 +90,93 @@ def start(message):
         markup.add(telebot.types.InlineKeyboardButton("📢 Channel", url="https://t.me/srmtelecom"),
                    telebot.types.InlineKeyboardButton("👥 Group", url="https://t.me/sajoltelecom2"))
         markup.add(telebot.types.InlineKeyboardButton("✅ I join", callback_data="check_join"))
-        bot.send_message(uid, "<b>⚠️ জয়েন বাধ্যতামূলক!</b>", reply_markup=markup, parse_mode="HTML")
+        bot.send_message(uid, "<b>⚠️ জয়েন বাধ্যতামূলক!</b>\n\nনিচের চ্যানেল ও গ্রুপে জয়েন করে 'I join' বাটনে ক্লিক করুন।", reply_markup=markup, parse_mode="HTML")
         return
 
-    # ফোন নম্বর এবং লোকেশন না থাকলে চেয়ে নেওয়া
-    if users[uid]["phone"] == "Not Shared":
-        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True).add(telebot.types.KeyboardButton("📞 নম্বর শেয়ার করুন", request_contact=True))
-        bot.send_message(uid, "👋 কাজ শুরু করতে আপনার নম্বরটি শেয়ার করুন।", reply_markup=markup)
-    elif users[uid]["loc"] == "Not Shared":
-        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True).add(telebot.types.KeyboardButton("📍 লোকেশন শেয়ার করুন", request_location=True))
-        bot.send_message(uid, "📍 এবার আপনার লোকেশনটি শেয়ার করুন।", reply_markup=markup)
+    bot.send_message(uid, "🌟 <b>S.R.M TELECOM</b> বটে আপনাকে স্বাগতম!", reply_markup=main_menu(message.chat.id), parse_mode="HTML")
+
+@bot.callback_query_handler(func=lambda call: call.data == "check_join")
+def check_join(call):
+    if is_joined(call.message.chat.id):
+        bot.answer_callback_query(call.id, "ধন্যবাদ! আপনি সফলভাবে জয়েন করেছেন।")
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        start(call.message)
     else:
-        bot.send_message(uid, f"🌟 <b>S.R.M TELECOM</b>\nস্বাগতম {users[uid]['name']}!", reply_markup=main_menu(message.chat.id), parse_mode="HTML")
+        bot.answer_callback_query(call.id, "আগে ঠিকভাবে জয়েন করুন! 😡", show_alert=True)
 
-# ডাটা সংগ্রহ (Contact & Location)
-@bot.message_handler(content_types=['contact', 'location'])
-def collect_info(message):
+# --- সাব-বাটন প্রসেস (সমস্যা -> স্ক্রিনশট) ---
+def ask_for_problem(message, sub_name):
+    msg = bot.send_message(message.chat.id, f"আপনি <b>{sub_name}</b> সিলেক্ট করেছেন।\n\n✅ আপনার সমস্যাটি বিস্তারিত লিখে পাঠান (নম্বরসহ):", parse_mode="HTML", reply_markup=telebot.types.ReplyKeyboardRemove())
+    bot.register_next_step_handler(msg, lambda m: ask_for_screenshot(m, sub_name))
+
+def ask_for_screenshot(message, sub_name):
     uid = str(message.chat.id)
-    users = load_data(DATA_FILE, {})
-    if message.contact:
-        users[uid]["phone"] = message.contact.phone_number
-    if message.location:
-        users[uid]["loc"] = f"https://www.google.com/maps?q={message.location.latitude},{message.location.longitude}"
-    save_data(DATA_FILE, users)
-    start(message)
-
-# --- এডমিন অ্যাকশন ---
-@bot.message_handler(func=lambda m: m.chat.id in ADMINS and m.text == "📜 User Details")
-def show_details(message):
-    users = load_data(DATA_FILE, {})
-    if not users:
-        bot.send_message(message.chat.id, "এখনো কোনো ইউজার নেই।")
-        return
+    # এডমিনকে জানানো
+    for admin in ADMINS:
+        bot.send_message(admin, f"📩 <b>নতুন রিপোর্ট ({sub_name})</b>\n👤 নাম: {message.from_user.first_name}\n📝 বর্ণনা: {message.text}\n🆔 ID: <code>{uid}</code>", parse_mode="HTML")
     
-    details_txt = "📜 <b>ইউজারদের পূর্ণাঙ্গ তথ্য:</b>\n\n"
-    for id, info in users.items():
-        details_txt += f"👤 <b>নাম:</b> {info.get('name')}\n"
-        details_txt += f"🆔 <b>ID:</b> <code>{id}</code>\n"
-        details_txt += f"📞 <b>ফোন:</b> {info.get('phone')}\n"
-        details_txt += f"📍 <b>লোকেশন:</b> <a href='{info.get('loc')}'>ম্যাপে দেখুন</a>\n"
-        details_txt += "------------------------\n"
-        
-        # মেসেজ অনেক বড় হয়ে গেলে ভেঙে পাঠানো
-        if len(details_txt) > 3000:
-            bot.send_message(message.chat.id, details_txt, parse_mode="HTML", disable_web_page_preview=True)
-            details_txt = ""
-            
-    bot.send_message(message.chat.id, details_txt, parse_mode="HTML", disable_web_page_preview=True)
+    bot.send_message(message.chat.id, "✅ নোট করা হয়েছে। এবার একটি <b>স্ক্রিনশট</b> পাঠান।", reply_markup=main_menu(message.chat.id))
 
-# --- (বাকি বাটন লজিক এবং রিপ্লাই লজিক আগের মতোই থাকবে) ---
+# --- মেইন হ্যান্ডলার ---
 @bot.message_handler(func=lambda m: True, content_types=['text', 'photo'])
 def handle_all(message):
     uid = str(message.chat.id)
-    # ... (এখানে রিচার্জ, ড্রাইভ এবং ব্যালেন্সের বাটন লজিকগুলো থাকবে যা আগে দিয়েছি) ...
-    # সজল ভাই, নিচের এই অংশটি শুধু এডমিন প্যানেল দেখানোর জন্য:
-    if message.text == "⚙️ Admin Panel" and message.chat.id in ADMINS:
+    text = message.text
+
+    if not is_joined(message.chat.id):
+        start(message)
+        return
+
+    # মেইন বাটন লজিক
+    if text == "📲 Apps link":
+        bot.send_message(uid, "<b>📥 অ্যাপ লিঙ্ক:</b>\nhttps://play.google.com/store/apps/details?id=com.shuvotelecom24.user", parse_mode="HTML")
+    elif text == "💰 Balance Problem":
+        bot.send_message(uid, "মাধ্যম সিলেক্ট করুন:", reply_markup=balance_menu())
+    elif text == "⚡ Recharge Problem":
+        bot.send_message(uid, "অপারেটর সিলেক্ট করুন:", reply_markup=recharge_menu())
+    elif text == "🚗 Drive Problem":
+        bot.send_message(uid, "অপারেটর সিলেক্ট করুন:", reply_markup=drive_menu())
+    elif text == "🏠 মেইন মেনু": start(message)
+
+    # এডমিন প্যানেল
+    elif text == "⚙️ Admin Panel" and message.chat.id in ADMINS:
         bot.send_message(uid, "🛠 এডমিন প্যানেল:", reply_markup=admin_menu())
-    elif message.text == "📊 Total Users" and message.chat.id in ADMINS:
+    elif text == "📊 Total Users" and message.chat.id in ADMINS:
         users = load_data(DATA_FILE, {})
         bot.send_message(uid, f"👥 মোট ইউজার: {len(users)} জন।")
-    elif message.text == "🏠 মেইন মেনু":
-        start(message)
-    # ফরওয়ার্ডিং এবং অন্যান্য লজিক...
+    elif text == "📜 User Details" and message.chat.id in ADMINS:
+        users = load_data(DATA_FILE, {})
+        details = "📜 <b>ইউজার লিস্ট:</b>\n"
+        for id, info in users.items():
+            details += f"👤 {info.get('name')} - <code>{id}</code>\n"
+        bot.send_message(uid, details, parse_mode="HTML")
+
+    # সাব-বাটন ক্লিক
+    elif text and ("Recharge" in text or "Drive" in text or "Personal" in text or "Agent" in text):
+        ask_for_problem(message, text)
+
+    # ফরওয়ার্ডিং (ইউজার কিছু পাঠালে)
     elif message.chat.id not in ADMINS:
         for admin in ADMINS:
-            bot.forward_message(admin, message.chat.id, message.message_id)
-            bot.send_message(admin, f"📩 <b>বার্তা আসিয়াছে</b>\n🆔 ID: <code>{uid}</code>", parse_mode="HTML")
-        bot.send_message(uid, "✅ এডমিনকে জানানো হয়েছে।")
+            try:
+                bot.forward_message(admin, message.chat.id, message.message_id)
+                bot.send_message(admin, f"📩 <b>বার্তা আসিয়াছে</b>\n🆔 ID: <code>{uid}</code>", parse_mode="HTML")
+            except: pass
+        bot.send_message(uid, "✅ আপনার বার্তা এডমিনকে পাঠানো হয়েছে।")
 
-# রিপ্লাই লজিক আগের মতোই...
+# এডমিন রিপ্লাই
 @bot.message_handler(func=lambda m: m.chat.id in ADMINS and m.reply_to_message)
 def reply_logic(message):
     try:
-        source_text = message.reply_to_message.text or message.reply_to_message.caption
-        if source_text and "🆔 ID:" in source_text:
-            target_id = source_text.split("🆔 ID:")[1].strip().split("\n")[0]
+        source = message.reply_to_message.text or message.reply_to_message.caption
+        if source and "🆔 ID:" in source:
+            target_id = source.split("🆔 ID:")[1].strip().split("\n")[0]
             bot.send_message(target_id, f"✉️ <b>এডমিন রিপ্লাই:</b>\n\n{message.text}", parse_mode="HTML")
             bot.reply_to(message, "✅ পাঠানো হয়েছে।")
     except: pass
 
+# --- রান ---
 if __name__ == "__main__":
-    threading.Thread(target=run_web).start()
+    def run_f(): app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+    threading.Thread(target=run_f).start()
     bot.infinity_polling()
