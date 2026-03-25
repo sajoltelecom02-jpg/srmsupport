@@ -2,8 +2,8 @@ import telebot
 import json
 import os
 
-# --- কনফিগারেশন ---
-TOKEN = "8760273912:AAF-y04Ntoz2QB49h6zMiaPardMFtfUSAk8"
+# --- আপনার নতুন টোকেন ---
+TOKEN = "8760273912:AAEkdvo_gB6yx4Vv--byb0UW_3HKVB9nksE"
 ADMINS = [5788640897]
 MY_CHANNEL_ID = -1002323081321  
 MY_GROUP_ID = -1002011910940    
@@ -11,6 +11,9 @@ DATA_FILE = "users.json"
 BUTTONS_FILE = "buttons.json"
 
 bot = telebot.TeleBot(TOKEN)
+
+# ৪০৯ কনফ্লিক্ট এরর দূর করতে এই লাইনটি জরুরি
+bot.remove_webhook()
 
 # --- ডাটাবেস হ্যান্ডলিং ---
 def load_data(file, default):
@@ -79,7 +82,8 @@ def start(message):
 @bot.callback_query_handler(func=lambda call: call.data == "check_join")
 def check_join(call):
     if is_joined(call.message.chat.id):
-        bot.delete_message(call.message.chat.id, call.message.message_id)
+        try: bot.delete_message(call.message.chat.id, call.message.message_id)
+        except: pass
         start(call.message)
     else:
         bot.answer_callback_query(call.id, "আগে ঠিকভাবে জয়েন করুন! 😡", show_alert=True)
@@ -145,8 +149,10 @@ def handle_all(message):
         start(message)
     elif message.chat.id not in ADMINS:
         for admin in ADMINS:
-            bot.forward_message(admin, message.chat.id, message.message_id)
-            bot.send_message(admin, f"📩 <b>নতুন বার্তা</b>\n🆔 ID: <code>{uid}</code>", parse_mode="HTML")
+            try:
+                bot.forward_message(admin, message.chat.id, message.message_id)
+                bot.send_message(admin, f"📩 <b>নতুন বার্তা</b>\n🆔 ID: <code>{uid}</code>", parse_mode="HTML")
+            except: pass
         bot.send_message(uid, "✅ এডমিনকে জানানো হয়েছে।")
 
 @bot.message_handler(func=lambda m: m.chat.id in ADMINS and m.reply_to_message)
