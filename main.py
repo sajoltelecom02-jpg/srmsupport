@@ -5,7 +5,7 @@ import threading
 import time
 from flask import Flask
 
-# --- কনফিগারেশন (আপনার নতুন টোকেন ও আইডি) ---
+# --- কনফিগারেশন ---
 TOKEN = "8760273912:AAGDpzk_fdOpIe1ltu3EP5cAmJHXW3he3yE"
 ADMINS = [5788640897]
 MY_CHANNEL_ID = -1002323081321  
@@ -15,12 +15,12 @@ BAN_FILE = "banned.json"
 
 bot = telebot.TeleBot(TOKEN)
 
-# --- Flask Server for Render (Port Error Fix) ---
+# --- Flask Server for Render ---
 app = Flask('')
 @app.route('/')
-def home(): return "SRM TELECOM BOT IS LIVE AND RUNNING!"
+def home(): return "SRM TELECOM IS LIVE!"
 
-# --- ডাটাবেস ফাংশন ---
+# --- ডাটাবেস হ্যান্ডলিং ---
 def load_data(file, default):
     if os.path.exists(file):
         try:
@@ -72,13 +72,13 @@ def is_joined(user_id):
         return (ch in allowed) and (gr in allowed)
     except: return False
 
-# --- ১. স্টার্ট কমান্ড ও ডাটা কালেকশন ---
+# --- ১. স্টার্ট ও ডাটা কালেকশন ---
 @bot.message_handler(commands=['start'])
 def start(message):
     uid = str(message.chat.id)
     banned = load_data(BAN_FILE, [])
     if message.chat.id in banned:
-        bot.send_message(uid, "❌ আপনি এই বট থেকে ব্যানড।")
+        bot.send_message(uid, "❌ আপনি ব্যানড।")
         return
 
     users = load_data(DATA_FILE, {})
@@ -91,20 +91,20 @@ def start(message):
         markup.add(telebot.types.InlineKeyboardButton("📢 Channel", url="https://t.me/srmtelecom"),
                    telebot.types.InlineKeyboardButton("👥 Group", url="https://t.me/sajoltelecom2"))
         markup.add(telebot.types.InlineKeyboardButton("✅ I join", callback_data="check_join"))
-        bot.send_message(uid, "<b>⚠️ জয়েন করা বাধ্যতামূলক!</b>\nনিচের চ্যানেল ও গ্রুপে জয়েন করে 'I join' বাটনে ক্লিক করুন।", reply_markup=markup, parse_mode="HTML")
+        bot.send_message(uid, "<b>⚠️ জয়েন বাধ্যতামূলক!</b>\nচ্যানেল ও গ্রুপে জয়েন করে বাটনে ক্লিক করুন।", reply_markup=markup, parse_mode="HTML")
         return
 
     # নম্বর ও লোকেশন কালেকশন
     if users[uid]["phone"] == "N/A":
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True).add(telebot.types.KeyboardButton("📞 নম্বর শেয়ার করুন", request_contact=True))
-        bot.send_message(uid, "👋 কাজ শুরু করতে নিচের বাটন চেপে আপনার নম্বরটি শেয়ার করুন।", reply_markup=markup)
+        bot.send_message(uid, "👋 কাজ শুরু করতে নিচের বাটন চেপে নম্বর দিন।", reply_markup=markup)
     elif users[uid]["loc"] == "N/A":
         markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True).add(telebot.types.KeyboardButton("📍 লোকেশন শেয়ার করুন", request_location=True))
-        bot.send_message(uid, "📍 এবার নিচের বাটন চেপে আপনার লোকেশনটি শেয়ার করুন।", reply_markup=markup)
+        bot.send_message(uid, "📍 এবার লোকেশনটি শেয়ার করুন।", reply_markup=markup)
     else:
-        bot.send_message(uid, f"🌟 <b>S.R.M TELECOM</b>\nস্বাগতম {users[uid]['name']}!", reply_markup=main_menu(message.chat.id), parse_mode="HTML")
+        bot.send_message(uid, f"🌟 <b>S.R.M TELECOM</b>", reply_markup=main_menu(message.chat.id), parse_mode="HTML")
 
-# নম্বর ও লোকেশন রিসিভ
+# --- ডাটা রিসিভ (Contact/Location) ---
 @bot.message_handler(content_types=['contact', 'location'])
 def collect_info(message):
     uid = str(message.chat.id)
@@ -114,9 +114,21 @@ def collect_info(message):
     save_data(DATA_FILE, users)
     start(message)
 
-# --- ২. সাব-বাটন প্রসেস (সমস্যা -> স্ক্রিনশট) ---
+# --- ২. চ্যানেল পোস্ট অটো ব্রডকাস্ট ---
+@bot.channel_post_handler(func=lambda m: m.chat.id == MY_CHANNEL_ID, content_types=['text', 'photo', 'video'])
+def auto_broadcast(message):
+    users = load_data(DATA_FILE, {})
+    for uid in users.keys():
+        try:
+            if message.content_type == 'text': bot.send_message(uid, message.text, parse_mode="HTML")
+            elif message.content_type == 'photo': bot.send_photo(uid, message.photo[-1].file_id, caption=message.caption, parse_mode="HTML")
+            elif message.content_type == 'video': bot.send_video(uid, message.video.file_id, caption=message.caption, parse_mode="HTML")
+            time.sleep(0.05)
+        except: pass
+
+# --- ৩. সাব-বাটন ও সমস্যা কালেকশন (Next Step Handler) ---
 def ask_problem(message, sub_name):
-    msg = bot.send_message(message.chat.id, f"আপনি <b>{sub_name}</b> সিলেক্ট করেছেন।\n\n✅ আপনার সমস্যাটি বিস্তারিত লিখে পাঠান:", parse_mode="HTML", reply_markup=telebot.types.ReplyKeyboardRemove())
+    msg = bot.send_message(message.chat.id, f"আপনি <b>{sub_name}</b> বেছে নিয়েছেন।\n\n✅ আপনার সমস্যাটি বিস্তারিত লিখে পাঠান:", parse_mode="HTML", reply_markup=telebot.types.ReplyKeyboardRemove())
     bot.register_next_step_handler(msg, lambda m: ask_screenshot(m, sub_name))
 
 def ask_screenshot(message, sub_name):
@@ -124,29 +136,10 @@ def ask_screenshot(message, sub_name):
     # এডমিনকে জানানো
     for admin in ADMINS:
         bot.send_message(admin, f"📩 <b>নতুন রিপোর্ট ({sub_name})</b>\n🆔 ID: <code>{uid}</code>\n📝 সমস্যা: {message.text}", parse_mode="HTML")
-    bot.send_message(message.chat.id, "✅ নোট করা হয়েছে। এবার প্রমাণের জন্য একটি <b>স্ক্রিনশট</b> পাঠান।", reply_markup=main_menu(message.chat.id), parse_mode="HTML")
+    bot.send_message(message.chat.id, "✅ নোট করা হয়েছে। এবার একটি <b>স্ক্রিনশট</b> পাঠান।", reply_markup=main_menu(message.chat.id), parse_mode="HTML")
 
-# --- ৩. চ্যানেল পোস্ট অটো ব্রডকাস্ট ---
-@bot.channel_post_handler(func=lambda m: m.chat.id == MY_CHANNEL_ID, content_types=['text', 'photo', 'video'])
-def auto_broadcast(message):
-    users = load_data(DATA_FILE, {})
-    success = 0
-    for uid in users.keys():
-        try:
-            if message.content_type == 'text':
-                bot.send_message(uid, message.text, parse_mode="HTML")
-            elif message.content_type == 'photo':
-                bot.send_photo(uid, message.photo[-1].file_id, caption=message.caption, parse_mode="HTML")
-            elif message.content_type == 'video':
-                bot.send_video(uid, message.video.file_id, caption=message.caption, parse_mode="HTML")
-            success += 1
-            time.sleep(0.05) # রেট লিমিট এড়াতে হালকা গ্যাপ
-        except: pass
-    for admin in ADMINS:
-        bot.send_message(admin, f"📢 <b>চ্যানেল পোস্ট ব্রডকাস্ট সম্পন্ন!</b>\n✅ মোট {success} জন ইউজারের কাছে পাঠানো হয়েছে।", parse_mode="HTML")
-
-# --- ৪. মেইন মেসেজ হ্যান্ডলার ---
-@bot.message_handler(func=lambda m: True, content_types=['text', 'photo'])
+# --- ৪. মেইন হ্যান্ডলার (বাটন লজিক ও ফরওয়ার্ডিং) ---
+@bot.message_handler(func=lambda m: True, content_types=['text', 'photo', 'video'])
 def handle_all(message):
     uid = str(message.chat.id)
     text = message.text
@@ -156,14 +149,13 @@ def handle_all(message):
         return
 
     # বাটন লজিক
-    if text == "📲 Apps link":
-        bot.send_message(uid, "🔗 <b>অ্যাপ লিঙ্ক:</b> https://play.google.com/store/apps/details?id=com.shuvotelecom24.user", parse_mode="HTML")
+    if text == "📲 Apps link": bot.send_message(uid, "🔗 https://play.google.com/store/apps/details?id=com.shuvotelecom24.user")
     elif text == "💰 Balance Problem": bot.send_message(uid, "সিলেক্ট করুন:", reply_markup=balance_menu())
     elif text == "⚡ Recharge Problem": bot.send_message(uid, "অপারেটর:", reply_markup=recharge_menu())
     elif text == "🚗 Drive Problem": bot.send_message(uid, "অপারেটর:", reply_markup=drive_menu())
     elif text == "🏠 মেইন মেনু": start(message)
 
-    # এডমিন প্যানেল
+    # এডমিন প্যানেল বাটন
     elif text == "⚙️ Admin Panel" and message.chat.id in ADMINS:
         bot.send_message(uid, "🛠 এডমিন প্যানেল:", reply_markup=admin_menu())
     elif text == "📊 Total Users" and message.chat.id in ADMINS:
@@ -171,26 +163,40 @@ def handle_all(message):
         bot.send_message(uid, f"👥 মোট ইউজার: {len(users)} জন।")
     elif text == "📜 User Full Details" and message.chat.id in ADMINS:
         users = load_data(DATA_FILE, {})
-        txt = "📜 <b>ইউজার লিস্ট:</b>\n\n"
+        details = "📜 <b>ইউজার লিস্ট:</b>\n\n"
         for id, info in users.items():
-            txt += f"👤 {info['name']}\n🆔 <code>{id}</code>\n📞 {info.get('phone','N/A')}\n📍 <a href='{info.get('loc','#')}'>Map Link</a>\n---\n"
-            if len(txt) > 3500: # মেসেজ লিমিট চেক
-                bot.send_message(uid, txt, parse_mode="HTML", disable_web_page_preview=True)
-                txt = ""
-        bot.send_message(uid, txt, parse_mode="HTML", disable_web_page_preview=True)
+            details += f"👤 {info['name']}\n🆔 <code>{id}</code>\n📞 {info.get('phone','N/A')}\n📍 <a href='{info.get('loc','')}'>Google Map</a>\n---\n"
+            if len(details) > 3500:
+                bot.send_message(uid, details, parse_mode="HTML", disable_web_page_preview=True)
+                details = ""
+        bot.send_message(uid, details, parse_mode="HTML", disable_web_page_preview=True)
 
     # সাব-বাটন ক্লিক চেক
     elif text and ("Recharge" in text or "Drive" in text or "Personal" in text or "Agent" in text):
         ask_problem(message, text)
 
-    # সাধারণ ফরওয়ার্ডিং
+    # ইউজার কিছু পাঠালে এডমিনকে ফরওয়ার্ড করা
     elif message.chat.id not in ADMINS:
         for admin in ADMINS:
             bot.forward_message(admin, message.chat.id, message.message_id)
-            bot.send_message(admin, f"📩 <b>বার্তা</b>\n🆔 ID: <code>{uid}</code>", parse_mode="HTML")
+            bot.send_message(admin, f"📩 <b>বার্তা আসিয়াছে</b>\n🆔 ID: <code>{uid}</code>", parse_mode="HTML")
         bot.send_message(uid, "✅ আপনার বার্তা এডমিনকে পাঠানো হয়েছে।")
 
-# --- ৫. কলব্যাক ও রিপ্লাই লজিক ---
+# --- ৫. এডমিন রিপ্লাই লজিক (১০০% ফিক্সড) ---
+@bot.message_handler(func=lambda m: m.chat.id in ADMINS and m.reply_to_message)
+def admin_reply(message):
+    try:
+        source = message.reply_to_message.text or message.reply_to_message.caption
+        if source and "🆔 ID:" in source:
+            tid = source.split("🆔 ID:")[1].strip().split("\n")[0].strip()
+            if message.content_type == 'text':
+                bot.send_message(tid, f"✉️ <b>এডমিন রিপ্লাই:</b>\n\n{message.text}", parse_mode="HTML")
+            elif message.content_type == 'photo':
+                bot.send_photo(tid, message.photo[-1].file_id, caption=f"✉️ <b>এডমিন রিপ্লাই:</b>\n\n{message.caption if message.caption else ''}", parse_mode="HTML")
+            bot.reply_to(message, "✅ রিপ্লাই পাঠানো হয়েছে।")
+    except Exception as e: bot.reply_to(message, f"❌ এরর: {str(e)}")
+
+# --- কলব্যাক হ্যান্ডলার (Force Join) ---
 @bot.callback_query_handler(func=lambda call: call.data == "check_join")
 def cb_join(call):
     if is_joined(call.message.chat.id):
@@ -198,27 +204,11 @@ def cb_join(call):
         start(call.message)
     else: bot.answer_callback_query(call.id, "আগে ঠিকভাবে জয়েন করুন! 😡", show_alert=True)
 
-@bot.message_handler(func=lambda m: m.chat.id in ADMINS and m.reply_to_message)
-def reply_msg(message):
-    try:
-        source = message.reply_to_message.text or message.reply_to_message.caption
-        if "🆔 ID:" in source:
-            tid = source.split("🆔 ID:")[1].strip().split("\n")[0]
-            bot.send_message(tid, f"✉️ <b>এডমিন রিপ্লাই:</b>\n\n{message.text}", parse_mode="HTML")
-            bot.reply_to(message, "✅ পাঠানো হয়েছে।")
-    except: pass
-
-# --- ৬. সার্ভার রান ---
+# --- ৬. সার্ভার রান ও পোলিং ---
 if __name__ == "__main__":
-    def run_f():
-        try: app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
-        except: pass
-    threading.Thread(target=run_f).start()
-    
-    # পোলিং এরর হ্যান্ডলিং (409 Conflict Fix)
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))).start()
     while True:
         try:
             bot.remove_webhook()
-            bot.infinity_polling(skip_pending=True, timeout=20)
-        except Exception as e:
-            time.sleep(5)
+            bot.infinity_polling(skip_pending=True)
+        except: time.sleep(5)
